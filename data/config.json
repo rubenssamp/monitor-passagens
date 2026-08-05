@@ -1,0 +1,17 @@
+{
+  "monitoring_start_date": "2026-08-05",
+  "search_horizon_days": 365,
+  "trip_duration_days": 7,
+  "allowed_months": [3, 4, 5, 9, 10],
+  "max_active_routes": 2,
+  "routes": [
+    {
+      "id": "for-fco",
+      "origin": "FOR",
+      "destination": "FCO",
+      "active": true,
+      "price_threshold": 3500,
+      "currency": "BRL"
+    }
+  ]
+}
