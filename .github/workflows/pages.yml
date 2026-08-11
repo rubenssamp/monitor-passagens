@@ -12,6 +12,10 @@ on:
       - "package-lock.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
+  # Chamado pelo search.yml depois de commitar prices.db — um push feito com o
+  # GITHUB_TOKEN padrão não dispara outros workflows (proteção anti-loop do GitHub),
+  # então o job de busca chama este workflow diretamente em vez de depender do evento push.
+  workflow_call:
 
 permissions:
   contents: read
@@ -39,8 +43,10 @@ jobs:
 
       - name: Build estático
         env:
-          NEXT_BASE_PATH: /${{ github.event.repository.name }}
-        run: npm run build
+          GH_REPO: ${{ github.repository }}
+        run: |
+          export NEXT_BASE_PATH="/${GH_REPO#*/}"
+          npm run build
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5
