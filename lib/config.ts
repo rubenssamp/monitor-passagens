@@ -21,31 +21,13 @@ export interface AppConfig {
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "config.json");
 
-export function getConfigPath(): string {
-  return CONFIG_PATH;
-}
-
 export function readConfig(): AppConfig {
   const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
   return JSON.parse(raw) as AppConfig;
 }
 
-/** Local-only write, used by scripts/dev. The dashboard writes via lib/github.ts instead. */
-export function writeConfigLocal(config: AppConfig): void {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
-}
-
 export function activeRoutes(config: AppConfig): Route[] {
   return config.routes.filter((r) => r.active).slice(0, config.max_active_routes);
-}
-
-/** Splits allowed_months (sorted) into two halves for the morning/night rotation. */
-export function splitMonthsForRotation(
-  allowedMonths: number[],
-): { morning: number[]; night: number[] } {
-  const sorted = [...allowedMonths].sort((a, b) => a - b);
-  const mid = Math.ceil(sorted.length / 2);
-  return { morning: sorted.slice(0, mid), night: sorted.slice(mid) };
 }
 
 export function daysSinceMonitoringStart(config: AppConfig, today = new Date()): number {

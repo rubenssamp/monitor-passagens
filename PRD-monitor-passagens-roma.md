@@ -1,5 +1,13 @@
 # PRD — Monitor de Passagens Aéreas (multi-rota)
 
+> **Atualização (ago/2026):** a Amadeus descontinuou o tier Self-Service em 17/jul/2026 (só
+> restou o portal Enterprise, pago/via vendas). O projeto foi migrado para a
+> **Travelpayouts/Aviasales Data API** (grátis, sem mínimo de usuários) — ver seção 3 atualizada
+> mais abaixo. Como essa API não tem um limite de chamadas apertado como a Amadeus tinha, a
+> estratégia de rotação de meses entre execuções (antiga seção 3.1) foi removida: cada execução
+> busca todos os meses permitidos, para todas as rotas ativas. Também não existe mais etapa
+> separada de "confirmar preço" — a API já devolve preço, cia e paradas numa chamada só.
+
 ## 1. Objetivo
 
 App que busca automaticamente, 2x por dia durante 170 dias, preços de passagens aéreas entre origem(ns) e destino(s) configuráveis pelo usuário via interface visual, varrendo janelas de 7 dias de viagem dentro de meses específicos do ano, e registra/alerta quando encontrar preços baixos.
@@ -15,44 +23,28 @@ App que busca automaticamente, 2x por dia durante 170 dias, preços de passagens
 
 ## 3. Fonte de dados
 
-**Amadeus for Developers — tier Self-Service (grátis)**
-- Limite: ~2.000 chamadas/mês, 10 req/s
-- Ambiente: `test.api.amadeus.com`
+**Travelpayouts/Aviasales Data API (grátis, sem mínimo de usuários)**
+- Endpoint: `GET /aviasales/v3/prices_for_dates`
+- Limite: 300 requisições/minuto — bem acima do necessário, sem rotação de cota
+- Dados vêm de cache de buscas reais de usuários do Aviasales (até 48h), não de cotação ao vivo — adequado para detectar tendência/queda de preço, mas rotas menos populares podem ter menos dados em cache
 
-**Fluxo de busca (2 etapas):**
-1. `GET /v1/shopping/flight-dates` (Cheapest Date Search) — varre um range de datas de ida dentro de um mês permitido e retorna os preços mais baratos por data.
-2. Para as datas mais promissoras (top 3), confirmar preço real com `GET /v2/shopping/flight-offers` (Flight Offers Search), calculando data de volta = data de ida + 7 dias (janela deslizante — ver 4.2).
+**Fluxo de busca (1 chamada por mês/rota):**
+- Para cada mês permitido: `origin`, `destination`, `departure_at=YYYY-MM`, `one_way=false` — retorna as passagens mais baratas já encontradas por usuários naquele mês, com preço, cia, paradas e datas de ida/volta na mesma resposta (sem etapa de confirmação separada)
+- Como a API não garante duração exata da viagem, filtra-se o resultado pelos que têm duração de ida+volta próxima de `trip_duration_days` (tolerância de 1 dia)
+- Top 3 resultados mais baratos (dentro da tolerância) são gravados no histórico
 
-⚠️ Validar na implementação se `flight-dates` cobre rotas com conexão (ex: FOR→FCO); se não cobrir, pular direto para `flight-offers` fazendo loop de datas.
-
-### 3.1 Estratégia de rotação de meses (para caber no limite grátis)
-
-Com 5 meses permitidos × múltiplas rotas × 2 execuções/dia, varrer **todos** os meses em **toda** execução estoura o limite grátis rapidamente (estimativa: ~6.800 chamadas/mês com 2 rotas — muito acima do limite).
-
-**Solução: dividir os meses permitidos entre as duas execuções diárias.**
-- Execução da manhã: varre metade dos meses permitidos (ex: mar, abr, mai)
-- Execução da noite: varre a outra metade (ex: set, out) + reconfirma o melhor achado do dia
-- Ao longo de cada semana, todos os meses permitidos acabam cobertos várias vezes
-- Regra de divisão deve ser configurável (ou automática, alternando os meses entre as execuções par/ímpar)
-
-**Estimativa de uso revisada (2 rotas ativas, 2x/dia, 170 dias):**
-- ~3 chamadas de Cheapest Date Search por execução por rota (metade dos meses)
-- ~3 chamadas de confirmação (top achados) por execução por rota
-- Total: ~12 chamadas/execução × 2x/dia × 30 dias ≈ **720 chamadas/mês**
-- Dentro do limite grátis, com folga para 2-3 rotas simultâneas.
+**Uso (2 rotas ativas, 5 meses permitidos, 2x/dia):** ~10 chamadas/execução × 2x/dia × 30 dias ≈ 600 chamadas/mês — bem dentro do limite de 300/min.
 
 ## 4. Funcionalidades (MVP)
 
 ### 4.1 Job agendado (cron)
 - Roda 2x/dia
-- Para cada rota ativa: executa busca conforme fluxo da seção 3, usando o subconjunto de meses da rotação daquela execução
+- Para cada rota ativa: executa busca conforme fluxo da seção 3, cobrindo todos os meses permitidos em toda execução
 - Salva resultados no banco (histórico de preços por rota, data de ida/volta)
 
-### 4.2 Janela de 7 dias (deslizante)
-- Dentro de cada mês permitido, testar toda combinação consecutiva:
-  - 1→8, 2→9, 3→10, 4→11 ... até o fim do intervalo de meses permitidos
-- Não pular dias: a janela avança 1 dia por vez, não de 7 em 7
-- O Cheapest Date Search cobre o mês inteiro de uma vez (retorna preço por data de ida); a partir do resultado, calcular data de volta = data de ida + 7 e confirmar via Flight Offers Search apenas para as datas de ida mais baratas
+### 4.2 Janela de 7 dias
+- A API já devolve, por mês, as combinações de ida/volta mais baratas encontradas em cache
+- Filtra-se para as combinações com duração de viagem próxima de `trip_duration_days` (tolerância de 1 dia), em vez de testar cada janela deslizante manualmente
 
 ### 4.3 Armazenamento
 - Banco simples (SQLite ou Postgres) com tabela tipo:
@@ -77,35 +69,34 @@ Com 5 meses permitidos × múltiplas rotas × 2 execuções/dia, varrer **todos*
 - Compra/checkout automático de passagem
 - Múltiplas durações de viagem (só 7 dias por enquanto)
 - Login multi-usuário (uso pessoal)
-- Rotas ilimitadas (há teto configurável para não estourar limite grátis da Amadeus)
+- Rotas ilimitadas (há teto configurável, `max_active_routes`)
 
 ## 6. Stack definida
 
-- **Backend:** Node.js + TypeScript (job de busca + client Amadeus), integrado ao projeto Next.js
+- **Backend:** Node.js + TypeScript (job de busca + client Travelpayouts), integrado ao projeto Next.js
 - **Banco:** SQLite, versionado no próprio repositório (commitado a cada execução do job)
 - **Scheduler:** GitHub Actions (workflow agendado 2x/dia via `schedule: cron`), sem servidor 24/7
 - **Notificação:** nenhuma ativa — apenas destaque visual no dashboard (ver 4.4)
-- **Frontend:** Next.js, lendo o SQLite versionado (build estático ou rota de API server-side lendo o arquivo do repo)
-- **Deploy do dashboard:** Vercel (ou similar) fazendo redeploy a cada push do GitHub Actions, para refletir os dados mais recentes
+- **Frontend:** Next.js exportado como site estático (`output: "export"`), lendo o SQLite e o `config.json` do repo em build time
+- **Deploy do dashboard:** GitHub Pages, republicado automaticamente a cada push (workflow separado, `.github/workflows/pages.yml`) — sem conta em nenhum serviço externo
 
 ## 7. Variáveis de configuração
 
-**Fixas (ambiente/.env):**
-- `AMADEUS_API_KEY`, `AMADEUS_API_SECRET`
-- `RUN_SCHEDULE` (ex: "0 6,18 * * *")
-- `MAX_ACTIVE_ROUTES` (teto de rotas simultâneas, default 2-3)
+**Fixas (ambiente/.env, apenas o job do GitHub Actions usa):**
+- `TRAVELPAYOUTS_TOKEN`
 
-**Editáveis via interface (persistidas em banco):**
-- Rotas ativas (par origem/destino cada, até `MAX_ACTIVE_ROUTES`)
+**Editáveis em `data/config.json` (local ou pela interface web do GitHub, commitado no repo):**
+- Rotas ativas (par origem/destino cada, até `max_active_routes`)
 - Meses permitidos (default: mar, abr, mai, set, out)
-- `TRIP_DURATION_DAYS` (default 7, fixo no MVP mas já no banco para facilitar evolução futura)
-- `PRICE_THRESHOLD` por rota (valor de alerta)
-- `SEARCH_HORIZON_DAYS` (quantos dias à frente buscar, ex: 365)
+- `trip_duration_days` (default 7)
+- `price_threshold` por rota (valor de alerta)
+- `search_horizon_days` (quantos dias à frente buscar, ex: 365)
+
+O dashboard publicado no GitHub Pages é somente-leitura (site estático); a edição da config é feita diretamente no arquivo, não por um formulário no site.
 
 ## 8. Critérios de sucesso
 
 - App roda sem intervenção manual por 170 dias
-- Usuário consegue adicionar/trocar rota e meses permitidos pela interface sem mexer em código
-- Nunca estoura o limite de 2.000 chamadas/mês da Amadeus (rotação de meses entre execuções garante isso)
+- Usuário consegue adicionar/trocar rota e meses permitidos editando `data/config.json` (local ou pela interface do GitHub) sem mexer no código do app
 - Histórico de preços fica consultável e não se perde
 - Alerta dispara corretamente quando preço cai abaixo do threshold
