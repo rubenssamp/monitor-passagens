@@ -2,6 +2,14 @@ import { activeRoutes, monitoringPeriodEnded, readConfig } from "../lib/config";
 import { closeDb } from "../lib/db";
 import { searchRouteForMonths } from "../lib/search";
 
+try {
+  // Carrega .env para uso local (npm run search). No GitHub Actions as variáveis já vêm
+  // injetadas como env reais via secrets, então a ausência do arquivo aqui é esperada.
+  process.loadEnvFile();
+} catch {
+  // sem .env — ok em CI
+}
+
 async function main() {
   const config = readConfig();
   const today = new Date();

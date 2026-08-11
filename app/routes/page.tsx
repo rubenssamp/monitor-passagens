@@ -54,6 +54,19 @@ export default function RoutesPage() {
           ativas simultâneas.
         </p>
       </div>
+
+      <div className="card">
+        <h2>Sem resultados pra uma rota?</h2>
+        <p className="route-meta">
+          Os preços vêm de um cache de buscas reais no site da Aviasales — rotas menos populares
+          (ex: saindo de cidades menores rumo à Europa) podem não ter dados ainda. Buscar a rota
+          manualmente em{" "}
+          <a href="https://www.aviasales.com" target="_blank" rel="noreferrer">
+            aviasales.com
+          </a>{" "}
+          ajuda: a busca entra no cache e costuma aparecer na API em até 48h.
+        </p>
+      </div>
     </>
   );
 }
