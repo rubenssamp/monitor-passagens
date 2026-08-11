@@ -5,8 +5,10 @@ import { getHistoryForRoute } from "@/lib/db";
 import PriceChart from "@/app/components/PriceChart";
 import PriceTable from "@/app/components/PriceTable";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export function generateStaticParams() {
+  const config = readConfig();
+  return config.routes.map((route) => ({ id: route.id }));
+}
 
 export default async function RouteDetailPage({
   params,

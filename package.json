@@ -5,14 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
     "lint": "next lint",
     "search": "tsx scripts/run-search.ts",
     "search:morning": "tsx scripts/run-search.ts --run=morning",
     "search:night": "tsx scripts/run-search.ts --run=night"
   },
   "dependencies": {
-    "@octokit/rest": "^21.0.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

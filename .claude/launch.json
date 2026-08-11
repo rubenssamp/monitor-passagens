@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "monitor-passagens-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "3002", "out"],
+      "port": 3002
     }
   ]
 }

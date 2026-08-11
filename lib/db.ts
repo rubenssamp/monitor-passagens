@@ -80,9 +80,9 @@ export function closeDb(): void {
   }
 }
 
-// Usada pelo dashboard: abre em modo somente-leitura. Isso é essencial em runtimes serverless
-// (ex: Vercel) cujo filesystem é read-only — abrir em modo normal tentaria criar o arquivo
-// e os arquivos -wal/-shm, o que falha nesse ambiente. Se o arquivo ainda não existe (antes do
+// Usada pelo dashboard (lido em build time, já que o site é exportado estático pro GitHub
+// Pages): abre em modo somente-leitura, garantindo que o build nunca escreve em prices.db —
+// quem escreve é sempre o job (scripts/run-search.ts). Se o arquivo ainda não existe (antes do
 // primeiro job rodar), retorna null em vez de lançar erro.
 function getReadDb(): DatabaseSync | null {
   if (readDb) return readDb;

@@ -2,9 +2,6 @@ import Link from "next/link";
 import { readConfig } from "@/lib/config";
 import { getCheapestPerRoute } from "@/lib/db";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 function formatPrice(price: number, currency: string): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(price);
 }
